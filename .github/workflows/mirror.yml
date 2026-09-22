@@ -1,0 +1,50 @@
+name: mirror
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      max-parallel: 6
+      matrix:
+        include:
+          - { src: "docker.io/hardcoreeng/front",          dst: "huly-front",          tag: "v0.7.426" }
+          - { src: "docker.io/hardcoreeng/transactor",     dst: "huly-transactor",     tag: "v0.7.426" }
+          - { src: "docker.io/hardcoreeng/account",        dst: "huly-account",        tag: "v0.7.426" }
+          - { src: "docker.io/hardcoreeng/workspace",      dst: "huly-workspace",      tag: "v0.7.426" }
+          - { src: "docker.io/hardcoreeng/fulltext",       dst: "huly-fulltext",       tag: "v0.7.426" }
+          - { src: "docker.io/hardcoreeng/stats",          dst: "huly-stats",          tag: "v0.7.426" }
+          - { src: "docker.io/hardcoreeng/collaborator",   dst: "huly-collaborator",   tag: "v0.7.426" }
+          - { src: "docker.io/hardcoreeng/rekoni-service", dst: "huly-rekoni-service", tag: "v0.7.426" }
+          - { src: "docker.io/hardcoreeng/hulykvs",        dst: "huly-hulykvs",        tag: "v0.7.426" }
+          - { src: "docker.redpanda.com/redpandadata/redpanda", dst: "huly-redpanda", tag: "v24.3.6" }
+          - { src: "docker.io/cockroachdb/cockroach",      dst: "huly-cockroach",      tag: "latest-v24.2" }
+          - { src: "docker.io/library/elasticsearch",      dst: "huly-elasticsearch",  tag: "7.14.2" }
+
+    steps:
+      - name: Log in to ghcr.io
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Copy ${{ matrix.src }}:${{ matrix.tag }} -> ghcr
+        run: |
+          set -euo pipefail
+          OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          SRC="${{ matrix.src }}:${{ matrix.tag }}"
+          DST="ghcr.io/${OWNER}/${{ matrix.dst }}:${{ matrix.tag }}"
+          echo "::notice::copying ${SRC} -> ${DST}"
+          docker pull --platform linux/amd64 "${SRC}"
+          docker tag "${SRC}" "${DST}"
+          docker push "${DST}"
+          echo "digest:"
+          docker image inspect "${DST}" --format '{{index .RepoDigests 0}}' || true
